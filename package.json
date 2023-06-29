@@ -4,7 +4,7 @@
     "brain": "^1.0.0",
     "html-webpack-plugin": "^5.5.1",
     "neataptic": "^1.4.7",
-    "puppeteer": "^20.4.0",
+    "puppeteer": "^20.7.3",
     "socket.io": "^4.6.1",
     "socket.io-client": "^4.6.0",
     "ws": "^8.13.0"

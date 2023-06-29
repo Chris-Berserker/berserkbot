@@ -5,6 +5,8 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 	<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
 	<script src="dist/bundle.js"></script>
@@ -14,6 +16,7 @@
 	<!-- Comment out the previous line and uncomment the next one to enable the New York City Edition -->
 	<!-- <script type="text/javascript" src="newyorkcityedition.js"></script> -->
 	<!-- <script language="javascript" type="text/javascript" src="./lib/NEAT_browser.js"></script> -->
+	<script src="https://cdn.rawgit.com/wagenaartje/neataptic/master/dist/neataptic.js"></script>
 	<script type="text/javascript" src="monopoly.js"></script>
 	<script type="text/javascript" src="ai.js"></script>
 	<script type="text/javascript" src="deepQ.js"></script>
@@ -248,6 +251,12 @@
 		</div>
 	</div>
 
+	<button id="start-training">Start Training</button>
+	<button id="stop-training">Stop Training</button>
+	<button id="start-evaluation">Start Evaluation</button>
+	<div id="training-status"></div>
+	
+
 	<div id="setup">
 		<div style="margin-bottom: 20px;">
 			Select number of players.
@@ -477,6 +486,10 @@
 		<div id="noF5">Note: Refreshing this page or navigating away from it may end your game without warning.</div>
 	</div>
 
+	<!-- VISUAL Graph -->
+	<canvas id="rewardChart"></canvas>
+
+	
 	<div id="control">
 		<table>
 			<tr>

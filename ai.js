@@ -1,12 +1,14 @@
 // P is the player array determining the AI
-function AITest(p) {
+function AITest(p,s) {
+
 	this.alertList = "";
     
 	// This variable is static, it is not related to each instance.
 	this.constructor.count++;
 
 	p.name = "AI Agent " + this.constructor.count;
-  var gameOver = this.gameOver;
+    var gameOver = this.gameOver;
+    var p = player;
     
 	// Decide whether to buy a property the AI landed on.
 	// Return: boolean (true to buy).
@@ -14,7 +16,12 @@ function AITest(p) {
 	// index: the property's index (0-39).
 	this.buyProperty = function(index) {
 		console.log("buyProperty");
+        if (index < 0 || index >= square.length) {
+            console.error('Invalid property index:', index);
+            return false;  // Return false immediately
+        }
 		var s = square[index];
+        var p = player[turn];
         console.log(s);console.log(p);
 		if (p.money > s.price + 50) {
       console.log("true",p.position);
@@ -31,14 +38,14 @@ function AITest(p) {
 	// Arguments:
 	// tradeObj: the proposed trade, an instanceof Trade, has the AI as the recipient.
 	this.acceptTrade = function(tradeObj) {
-		console.log("acceptTrade");
+		console.log("acceptTrade was accepted");
 
 		var tradeValue = 0;
 		var money = tradeObj.getMoney();
 		var initiator = tradeObj.getInitiator();
 		var recipient = tradeObj.getRecipient();
 		var property = [];
-
+        console.log("tradeValue: "+tradeValue+", money: "+ money, initiator, recipient, property)
 		tradeValue += 10 * tradeObj.getCommunityChestJailCard();
 		tradeValue += 10 * tradeObj.getChanceJailCard();
 
@@ -116,7 +123,7 @@ this.beforeTurn = function() {
         } else if (s.owner === p.index && s.mortgage && p.money <= s.price) {
             // Not enough money to unmortgage a property, break the loop
             return false;
-        }else{return false;}
+        }
     }
 
     return false;
@@ -192,82 +199,128 @@ this.onLand = function() {
 
 	// Mortgage enough properties to pay debt.
 	// Return: void: don't return anything, just call the functions mortgage()/sellhouse()
-	this.payDebt = function() {
-		console.log("payDebt");
-		for (var i = 39; i >= 0; i--) {
-			s = square[i];
+    this.payDebt = function() {
+        console.log("payDebt called. Current money: " + p.money);
+        for (var i = 39; i >= 0; i--) {
+            s = square[i];
+    
+            if (s.owner === p.index && !s.mortgage && s.house === 0) {
+                console.log("Mortgaging property: " + s.name);
+                mortgage(i);
+            }
+    
+            if (p.money >= 0) {
+                console.log("Debt paid off. Remaining money: " + p.money);
+                return;
+            }
+        }
+    
+        console.log("Unable to pay off debt. Remaining money: " + p.money);
+    }
 
-			if (s.owner === p.index && !s.mortgage && s.house === 0) {
-				mortgage(i);
-				console.log(s.name);
-			}
+    this.bid = function(property, currentBid, bidAmount) {
+        console.log("bid: "+ s.price);
+        
+        if (p.money < bidAmount + 50 || bidAmount > s.price * 1.5) {
+            return -1;
+        } 
+    
+        return bidAmount;
+    }
 
-			if (p.money >= 0) {
-				return;
-			}
-		}
-
-	}
-
-	// Determine what to bid during an auction.
-	// Return: integer: -1 for exit auction, 0 for pass, a positive value for the bid.
-	this.bid = function(property, currentBid) {
-		console.log("bid");
-	
-		// Calculate a new bid, which is the current bid plus a random value between 10 and 30.
-		var newBid = currentBid + Math.round(Math.random() * 20 + 10);
-	
-		// Check if the player has enough money to make the new bid, leaving a buffer of 50.
-		// Also check if the new bid exceeds 1.5 times the property's price.
-		// If either condition is met, return -1 to indicate the player can't or won't bid.
-		if (p.money < newBid + 50 || newBid > square[property].price * 1.5) {
-			return -1;
-		} 
-	
-		// If the player can afford the bid and it's not too high, return the new bid.
-		return newBid;
-	}
-	
-
+    this.chooseAction = async function(statess, stateObj, epsilon) {
+        console.log("createStateArray was called with propertyId:", statess.playerPosition);
+        console.log("createStateArray was called with stateObj:", stateObj);
+        let bidAmount;
+        if (Math.random() < epsilon) {
+            if (stateObj.type === 'auction') {
+                console.log("state.isAction was called");
+                bidAmount = Math.random() * stateObj.currentBid;
+                return {type: 'bid', bidAmount: bidAmount};
+            } else {
+                return {type: ACTIONS[Math.floor(Math.random() * ACTIONS.length)]};
+            }
+        } else {
+            if (stateObj.type === 'auction') {
+                console.log("else epsilon chooseAction was called");
+                let maxQValue = -Infinity;
+                for (let bid = 0; bid <= stateObj.currentBid; bid++) {
+                    // You'll need to modify this line to create a state array from stateObj
+                    //const state = this.createStateArray(stateObj, bid);
+                    const state = this.createStateArray(stateObj, bid);
+                    console.log(state.length);
+                    const qValue = qNetwork.predict(tf.tensor2d([state], [1, state.length]));
+                    if (qValue > maxQValue) {
+                        maxQValue = qValue;
+                        bidAmount = bid;
+                    }
+                }
+                return {type: 'bid', bidAmount: bidAmount};
+            } else {
+                // You'll need to modify this line to create a state array from stateObj
+                const state = statess;
+                const qValues = await qNetwork.predict(tf.tensor2d([state], [1, 16]));
+                return {type: ACTIONS[qValues.argMax(-1).dataSync()[0]]};
+            }
+        }
+    };
   
-  this.performAction = function(action) {
+    
+    this.createStateArray = function(stateObj, bid = 0) {
+        // Extract player and square from stateObj
+        const { player, square } = stateObj;
+    
+        // Get the state from the getState function
+        let stateArray = getState(player, square);
+    
+        // Include the bid in the state array only if it doesn't exceed the length
+        if (stateArray.length < 16) {
+            stateArray.push(bid);
+        }
+    
+        // Ensure the state array has a length of 16
+        while (stateArray.length > 16) {
+            stateArray.pop();
+        }
+        while (stateArray.length < 16) {
+            stateArray.push(0);
+        }
+    
+        return stateArray;
+    };
+    
+  
+  this.performAction = async function(action) {
 	if (game.isOver()) {
         console.log("Game has ended. No further actions will be performed.");
         return false;
     }
-    switch (action.type) {
-        case "buyProperty":
-            // Call the buyProperty method of the player's AI
+    try {
+        switch (action.type) {
+          case "buyProperty":
             return this.buyProperty(action.propertyId);
-        case "acceptTrade":
-            // Call the acceptTrade method of the player's AI
-            // Note: You'll need to construct a trade object based on your game's rules
-            var tradeObj = constructTradeObject(action.tradeDetails);
-            return this.acceptTrade(tradeObj);
-        case "beforeTurn":
-            // Call the beforeTurn method of the player's AI
+          case "acceptTrade":
+            return this.acceptTrade(action.tradeDetails);
+          case "beforeTurn":
             return this.beforeTurn();
-        case "onLand":
-            // Call the onLand method of the player's AI
+          case "onLand":
             return this.onLand();
-        case "postBail":
-            // Call the postBail method of the player's AI
+          case "postBail":
             return this.postBail();
-        case "payDebt":
-            // Call the payDebt method of the player's AI
+          case "payDebt":
             return this.payDebt();
-        case "bid":
-            // Call the bid method of the player's AI
-            // Note: You'll need to provide the property and current bid as arguments
-            return this.bid(action.propertyId, action.currentBid);
-        case "END_TURN":
-            // End the player's turn
+          case "bid":
+            return this.bid(action.propertyId, action.currentBid, action.bidAmount);
+          case "END_TURN":
             game.next();
-            return true;  // The turn has ended, so return true
-        default:
+            return true;
+          default:
             console.log("Unknown action: " + action.type);
-            return false;  // Unknown action, so return false
-    }
+            return false;
+        }
+      } catch (error) {
+        console.error('An error occurred during the performAction call:', error);
+      }
 }
 
 }

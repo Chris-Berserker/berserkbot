@@ -19,10 +19,11 @@ function Game() {
 		areDiceRolled = false;
 	};
 
+
 	this.winner = function(){
 		//this states the winner of the game
 		if(pcount === 1){
-			winner = p.index;
+			winner = p.name;
 			console.log('The winner is ' + p.name);//debugging purposes
 		}else{
 			console.log('no winner yet');//debugging purposes
@@ -178,7 +179,7 @@ function Game() {
 		
 	this.next = function() {
 		// Check if there's more than one player left
-		getState(player, square);
+		var p = player;
 		if (pcount > 1) {
 			if (!p.human && p.money < 0) {
 				// p.AI.payDebt();
@@ -215,6 +216,9 @@ function Game() {
 		}
 
 	};
+
+	
+
 
 	// Auction functions:
 	var finalizeAuction = function() {
@@ -274,7 +278,13 @@ function Game() {
 
 		if (!player[currentbidder].human ) {
 			// If the current bidder is an AI, call the AI's bid function directly
-			var bid = player[currentbidder].AI.performAction({type: 'bid', propertyId: auctionproperty, currentBid: highestbid});
+			//var bid = player[currentbidder].AI.performAction({type: 'bid', propertyId: auctionproperty, currentBid: highestbid});
+			var bidAmount = player[currentbidder].AI.chooseAction({type: 'auction', propertyId: auctionproperty, currentBid: highestbid}).bidAmount;
+			console.log('281 BidAmount: '+bidAmount);
+			var bid = player[currentbidder].AI.performAction({type: 'bid', propertyId: auctionproperty, currentBid: highestbid, bidAmount: bidAmount});
+
+			console.log(bid);
+			
 			if (bid === -1) {
 				// If the AI chose to exit the auction, call the auctionExit function
 				this.auctionExit();
@@ -1120,7 +1130,9 @@ function Game() {
 			addAlert(initiator.name + " initiated a trade with " + recipient.name + ".");
 			popup("<p>" + initiator.name + " has proposed a trade with you, " + recipient.name + ". You may accept, reject, or modify the offer.</p>");
 		} else {
-        var tradeResponse = recipient.AI.acceptTrade(tradeObj);
+			console.log("Trade Object: "+tradeObj);
+        var tradeResponse = recipient.AI.performAction({type: "acceptTrade" , tradeDetails: tradeObj});
+		console.log("Response: "+tradeResponse);
 
         if (tradeResponse === true) {
             if (initiator.human) {
@@ -1150,6 +1162,7 @@ function Game() {
 		var p = player[turn];
 
 		for (var i = p.index; i < pcount; i++) {
+			console.log(p.index);
 			player[i] = player[i + 1];
 			player[i].index = i;
 
@@ -1292,6 +1305,11 @@ function Game() {
 
 }
 
+
+  
+
+
+
 var game;
 
 
@@ -1326,6 +1344,12 @@ function Player(name, color) {
 		}
 	};
 }
+
+/////////////////////////////////////////////////////////////
+	// Global variable to control the training loop
+
+
+
 
 // paramaters:
 // initiator: object Player
@@ -1871,6 +1895,10 @@ function updateOption() {
 }
 
 function chanceCommunityChest() {
+	if (pcount <= 1) {
+        console.log("Game is over!");
+        return;
+    }
     var p = player[turn];
 
     // Community Chest
@@ -1922,7 +1950,7 @@ function chanceCommunityChest() {
         if (!p.human) {
             p.AI.alertList = "";
 
-            if (!p.AI.onLand()) {
+            if (!p.AI.performAction({type: "onLand"})) {
                 p.AI.performAction({type: "END_TURN"});
             }
         }
@@ -2588,14 +2616,15 @@ function land(increasedRent) {
 	updateOwned();
 
 	if (!p.human) {
-		console.log(p.AI.alertList);
+		//console.log(p.AI.alertList);
 		p.AI.alertList = "";
 		chanceCommunityChest();
 	} else {
 		chanceCommunityChest();
 	}
 }
-
+let trainCount =  0;
+let training = false;
 function roll() {
 	// Check if there's more than one player left
     if (pcount <= 1) {
@@ -2660,6 +2689,68 @@ function roll() {
 	updateMoney();
 	updateOwned();
 
+
+	// var bulk = getState(p, s);
+	// console.log(getState(p, s));
+	// console.log(p.position);
+	// console.log("TrainCount outside: "+trainCount);
+	// if(trainCount < 1){
+	// 	trainCount++;
+	// 	console.log("TrainCount inside: "+trainCount);
+	// 	console.log("Train was called");
+	// 	if(pcount > 0 && !game.isOver()){
+	// 		for (let i = 1; i <= pcount; i++) {
+	// 			p = player[i];
+	// 			if (!p || !p.AI) { console.error('p or p.AI is undefined'); return; }
+	// 			// Call the train function once, after all the players have been created
+	// 			train(game , 10, 32, 0.99, 0.1, p, s, bulk).then(() => {
+	// 				evaluate(game, 1, p, s);
+	// 			}).catch(error => {
+	// 				console.error("An error occurred during training:", error);
+	// 			});
+	// 		}
+	// 	}
+	// }
+	
+
+
+	var bulk = getState(p, s);
+	document.getElementById("start-training").addEventListener("click", function() {
+	training = true;
+	document.getElementById("training-status").innerText = 'Training...';
+	
+	// Here p is the player object and s is the square object
+	// numEpisodes, batchSize, discountFactor, and epsilon are hyperparameters that you can adjust
+	// bulk represents the initial game state 
+	// You can wrap your training function in a setInterval or setTimeout loop to continually train while the training variable is true
+	
+	let intervalId = setInterval(function() {
+		if (training) {
+		train(game , 10, 32, 0.99, 0.1, p, s, bulk);
+		} else {
+		clearInterval(intervalId);
+		document.getElementById("training-status").innerText = 'Training stopped.';
+		}
+	}, 1000);
+	});
+
+	document.getElementById("stop-training").addEventListener("click", function() {
+	training = false;
+	});
+
+	document.getElementById("start-evaluation").addEventListener("click", function() {
+	// Here numEpisodes is the number of games you want to evaluate over
+	evaluate(game, numEpisodes, player, square).then(() => {
+		// Actions to do after evaluate function finishes
+	  }).catch((error) => {
+		// Error handling
+		console.log("error");
+	  });
+	  
+	});
+
+
+
 	if (p.jail === true) {
 		p.jailroll++;
 
@@ -2719,26 +2810,27 @@ function roll() {
 
 		land();
 	}
+
 }
 
 function play() {
 	// Check if there's more than one player left
-    if (pcount <= 1) {
+    if (pcount < 2) {
         console.log("Game is over!");
         return;
     }
-
 	if (game.auction()) {
 		return;
 	}
-
 	turn++;
 	if (turn > pcount) {
 		turn -= pcount;
 	}
-
 	var p = player[turn];
 	game.resetDice();
+	
+
+
 
 	document.getElementById("pname").innerHTML = p.name;
 
@@ -2779,12 +2871,25 @@ function play() {
 			addAlert("This is " + p.name + "'s third turn in jail.");
 		}
 
-		// if (!p.human && p.AI.postBail()) {
-			if (!p.human && p.AI.performAction({ type: "postBail" })) {
-			if (p.communityChestJailCard || p.chanceJailCard) {
-				useJailCard();
-			} else {
-				payfifty();
+		var stateObj = {
+			position: p.position,
+			money: p.money,
+			properties: p.properties, // assuming p.properties is an array of property IDs the player owns
+			// include other relevant game state information here
+		};
+		var epsilon = 1.0; // start with 100% exploration
+
+
+
+		if (!p.human) {
+			const action = p.AI.chooseAction(stateObj, epsilon);
+			if (action.type === "postBail") {
+				p.AI.performAction(action);
+				if (p.communityChestJailCard || p.chanceJailCard) {
+					useJailCard();
+				} else {
+					payfifty();
+				}
 			}
 		}
 	}
@@ -2803,54 +2908,50 @@ function play() {
 	}
 }
 
+
 function setup() {
-	// Check if there's more than one player left
+    // Check if there's more than one player left
     if (pcount <= 1) {
         console.log("Game is over!");
         return;
     }
-	
-	pcount = parseInt(document.getElementById("playernumber").value, 10);
+    
+    pcount = parseInt(document.getElementById("playernumber").value, 10);
 
-	var playerArray = new Array(pcount);
-	var p;
-	var algo;
-	const numPlay = pcount;
+    var playerArray = new Array(pcount);
+    var p;
+	var s = square;
 
-	    playerArray.randomize();
+    playerArray.randomize();
 
     for (var i = 1; i <= pcount; i++) {
-        p = new Player("AI Player " + i, "red"); // Create new player
+        p = new Player("Player " + i, "red"); // Create new player
         p.color = document.getElementById("player" + i + "color").value.toLowerCase();
 
         if (document.getElementById("player" + i + "ai").value === "1") {
             p.human = false;
-            p.AI = new AITest(p);
-            getState(p,s);
-			train(game, 1, 32, 0.99, 0.1).then(() => {
-				evaluate(game, 100);
-			}).catch(error => {
-				console.error("An error occurred during training:", error);
-			});
+            p.AI = new AITest(p,s);
+
         }
         player[i] = p; // Assign the new player to the player array
     }
 
-	$("#board, #moneybar").show();
-	$("#setup").hide();
+    $("#board, #moneybar").show();
+    $("#setup").hide();
 
-	if (pcount === 2) {
-		document.getElementById("stats").style.width = "454px";
-	} else if (pcount === 3) {
-		document.getElementById("stats").style.width = "686px";
-	}
+    if (pcount === 2) {
+        document.getElementById("stats").style.width = "454px";
+    } else if (pcount === 3) {
+        document.getElementById("stats").style.width = "686px";
+    }
 
-	document.getElementById("stats").style.top = "0px";
-	document.getElementById("stats").style.left = "0px";
+    document.getElementById("stats").style.top = "0px";
+    document.getElementById("stats").style.left = "0px";
 
-	play();
-	
+    play();
 }
+
+
 
 function getCheckedProperty() {
 	for (var i = 0; i < 42; i++) {
@@ -2888,6 +2989,7 @@ window.onload = function() {
 		player[i] = new Player("", "");
 		player[i].index = i;
 	}
+
 
 	var groupPropertyArray = [];
 	var groupNumber;
@@ -3186,6 +3288,43 @@ window.onload = function() {
 
 
 	$("#trade-menu-item").click(game.trade);
+
+
+
+
+	////////////////////////////////////////////////////////////
+//	visuals
+let rewardChart = new Chart(document.getElementById('rewardChart').getContext('2d'), {
+	type: 'line',
+	data: {
+	  labels: [], // This array will be filled with the episode numbers
+	  datasets: [{
+		label: 'Reward per Episode',
+		data: [], // This array will be filled with the total rewards
+		fill: false,
+		borderColor: 'rgb(75, 192, 192)',
+		tension: 0.1
+	  }]
+	},
+	options: {
+	  scales: {
+		x: {
+		  display: true,
+		  title: {
+			display: true,
+			text: 'Episode'
+		  }
+		},
+		y: {
+		  display: true,
+		  title: {
+			display: true,
+			text: 'Total Reward'
+		  }
+		}
+	  }
+	}
+  });
 
 
 };

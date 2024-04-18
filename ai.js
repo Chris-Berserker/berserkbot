@@ -245,8 +245,6 @@ this.onLand = function() {
                 console.log("else epsilon chooseAction was called");
                 let maxQValue = -Infinity;
                 for (let bid = 0; bid <= stateObj.currentBid; bid++) {
-                    // You'll need to modify this line to create a state array from stateObj
-                    //const state = this.createStateArray(stateObj, bid);
                     const state = this.createStateArray(stateObj, bid);
                     console.log(state.length);
                     const qValue = qNetwork.predict(tf.tensor2d([state], [1, state.length]));
@@ -257,7 +255,6 @@ this.onLand = function() {
                 }
                 return {type: 'bid', bidAmount: bidAmount};
             } else {
-                // You'll need to modify this line to create a state array from stateObj
                 const state = statess;
                 const qValues = await qNetwork.predict(tf.tensor2d([state], [1, 16]));
                 return {type: ACTIONS[qValues.argMax(-1).dataSync()[0]]};
